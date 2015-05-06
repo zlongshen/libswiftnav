@@ -64,7 +64,7 @@ typedef struct {
   z_t *itr_upper_bounds;
   z_t *box_lower_bounds;
   z_t *box_upper_bounds;
-} intersection_count_t; 
+} intersection_count_t;
 
 typedef struct {
   intersection_count_t *x;
@@ -73,6 +73,8 @@ typedef struct {
   z_t *Z_new_inv;
 } generate_hypothesis_state_t2;
 
+
+void print_amb(ambiguity_test_t *amb_test);
 void print_s32_mtx_diff(u32 m, u32 n, s32 *Z_inv1, s32 *Z_inv2);
 s8 get_single_hypothesis(ambiguity_test_t *amb_test, s32 *hyp_N);
 void create_empty_ambiguity_test(ambiguity_test_t *amb_test);
@@ -122,6 +124,7 @@ z_t float_to_decor(const double *addible_float_cov,
                    u8 num_dds_to_add,
                    z_t *lower_bounds, z_t *upper_bounds,
                    z_t *Z, z_t *Z_inv);
+
 // TODO(dsk) delete
 s8 determine_sats_addition(ambiguity_test_t *amb_test,
                            double *float_N_cov, u8 num_float_dds, double *float_N_mean,

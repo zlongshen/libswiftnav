@@ -10,6 +10,9 @@
  * WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A PARTICULAR PURPOSE.
  */
 
+// (Buro) Enable logging for this file only
+#define DEBUG 1
+
 #include <string.h>
 #include <stdio.h>
 #include <assert.h>
@@ -34,6 +37,18 @@ dgnss_settings_t dgnss_settings = {
   .amb_init_var = DEFAULT_AMB_INIT_VAR,
   .new_int_var = DEFAULT_NEW_INT_VAR,
 };
+
+void catch_dgnss_fixed2float(u8 soln_mode, const char *caller) {
+  static u8 is_fixed = 0;
+  log_info("catch_dgnss_fixed2float\n");
+  log_info("%s", caller);
+  if (is_fixed == 1 && is_fixed != soln_mode) {
+    log_error("catch_dgnss_fixed2float: switched to float from fixed!\n");
+    log_info("%s", caller);
+    log_error("catch_dgnss_fixed2float");
+  }
+  is_fixed = soln_mode;
+}
 
 void dgnss_set_settings(double phase_var_test, double code_var_test,
                         double phase_var_kf, double code_var_kf,
@@ -311,27 +326,28 @@ void dgnss_update(u8 num_sats, sdiff_t *sdiffs, double reciever_ecef[3])
   double ref_ecef[3];
   if (num_sats >= 5) {
     dgnss_incorporate_observation(sdiffs_with_ref_first, dd_measurements, reciever_ecef);
-
     double b2[3];
     least_squares_solve_b(&nkf, sdiffs_with_ref_first, dd_measurements, reciever_ecef, b2);
-
     ref_ecef[0] = reciever_ecef[0] + 0.5 * b2[0];
     ref_ecef[1] = reciever_ecef[1] + 0.5 * b2[1];
     ref_ecef[2] = reciever_ecef[2] + 0.5 * b2[2];
   }
-
+  log_debug("dgnss_update: LOLOLOLOLOLOLOLOLOLOLOLOL %d\n", 22);
+  print_amb(&ambiguity_test);
   u8 changed_sats = ambiguity_update_sats(&ambiguity_test, num_sats, sdiffs,
                                           &sats_management, nkf.state_mean,
                                           nkf.state_cov_U, nkf.state_cov_D);
+
+ log_debug("dgnss_update: changed_sats% d\n", changed_sats);
+ print_amb(&ambiguity_test);
+ log_debug("---dgnss_update----LOL\n");
 
   update_ambiguity_test(ref_ecef,
                         dgnss_settings.phase_var_test,
                         dgnss_settings.code_var_test,
                         &ambiguity_test, nkf.state_dim,
                         sdiffs, changed_sats);
-
   update_unanimous_ambiguities(&ambiguity_test);
-
   if (DEBUG) {
     if (num_sats >=4) {
       double b3[3];
@@ -407,9 +423,11 @@ s8 dgnss_fixed_baseline(u8 num_sdiffs, sdiff_t *sdiffs, double ref_ecef[3],
                         u8 *num_used, double b[3])
 {
   if (!ambiguity_iar_can_solve(&ambiguity_test)) {
+    catch_dgnss_fixed2float(0, "dgnss_fixed_baseline 419\n");
+    print_amb(&ambiguity_test);
+    log_info("%s", "----dgnss_fixed_baseline 421\n");
     return 0;
   }
-
   sdiff_t ambiguity_sdiffs[ambiguity_test.amb_check.num_matching_ndxs+1];
   double dd_meas[2 * ambiguity_test.amb_check.num_matching_ndxs];
 
@@ -422,6 +440,7 @@ s8 dgnss_fixed_baseline(u8 num_sdiffs, sdiff_t *sdiffs, double ref_ecef[3],
     if (valid_sdiffs != -1) {
       log_error("dgnss_fixed_baseline: Invalid sdiffs.");
     }
+    catch_dgnss_fixed2float(0, "dgnss_fixed_baseline\n");
     return 0;
   }
 
@@ -435,8 +454,10 @@ s8 dgnss_fixed_baseline(u8 num_sdiffs, sdiff_t *sdiffs, double ref_ecef[3],
     log_error("dgnss_fixed_baseline: "
               "lesq_solution returned error %d\n", ret);
     DEBUG_EXIT();
+    catch_dgnss_fixed2float(0, "dgnss_fixed_baseline\n");
     return 0;
   }
+  catch_dgnss_fixed2float(1, "dgnss_fixed_baseline\n");
   return 1;
 }
 
@@ -533,6 +554,7 @@ s8 _dgnss_low_latency_IAR_baseline(u8 num_sdiffs, sdiff_t *sdiffs,
   DEBUG_ENTRY();
   assert(num_sdiffs >= 4);
   if (!ambiguity_iar_can_solve(&ambiguity_test)) {
+    catch_dgnss_fixed2float(0, "_dgnss_low_latency_IAR_baseline\n");
     DEBUG_EXIT();
     return -1;
   }
@@ -547,6 +569,7 @@ s8 _dgnss_low_latency_IAR_baseline(u8 num_sdiffs, sdiff_t *sdiffs,
     if (valid_sdiffs != -1) {
       log_error("_dgnss_low_latency_IAR_baseline: Invalid sdiffs.");
     }
+    catch_dgnss_fixed2float(0, "_dgnss_low_latency_IAR_baseline\n");
     DEBUG_EXIT();
     return -1;
   }
@@ -561,10 +584,11 @@ s8 _dgnss_low_latency_IAR_baseline(u8 num_sdiffs, sdiff_t *sdiffs,
   if (ret) {
     log_error("_dgnss_low_latency_IAR_baseline: "
               "lesq_solution returned error %d\n", ret);
+    catch_dgnss_fixed2float(0, "_dgnss_low_latency_IAR_baseline\n");
     DEBUG_EXIT();
     return -1;
   }
-
+  catch_dgnss_fixed2float(1, "_dgnss_low_latency_IAR_baseline\n");
   DEBUG_EXIT();
   return 0;
 }
@@ -602,6 +626,7 @@ s8 dgnss_low_latency_baseline(u8 num_sdiffs, sdiff_t *sdiffs,
   if (0 == _dgnss_low_latency_IAR_baseline(num_sdiffs, sdiffs,
                                   ref_ecef, num_used, b)) {
     log_debug("low latency IAR solution\n");
+    catch_dgnss_fixed2float(1, "_dgnss_low_latency_baseline\n");
     DEBUG_EXIT();
     return 1;
   }
@@ -611,6 +636,7 @@ s8 dgnss_low_latency_baseline(u8 num_sdiffs, sdiff_t *sdiffs,
                                               ref_ecef, num_used, b);
   if (float_ret_code == 0) {
     log_debug("low latency float solution\n");
+    catch_dgnss_fixed2float(0, "_dgnss_low_latency_baseline\n");
     DEBUG_EXIT();
     return 2;
   }

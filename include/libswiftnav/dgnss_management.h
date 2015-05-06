@@ -52,6 +52,8 @@ typedef struct {
 
 extern dgnss_settings_t dgnss_settings;
 
+void catch_dgnss_fixed2float(u8 soln_mode, const char *caller);
+
 void dgnss_set_settings(double phase_var_test, double code_var_test,
                         double phase_var_kf, double code_var_kf,
                         double amb_drift_var, double amb_init_var,

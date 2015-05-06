@@ -10,6 +10,9 @@
  * WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A PARTICULAR PURPOSE.
  */
 
+// (Buro) Enable logging for this file only
+#define DEBUG 1
+
 #include <assert.h>
 #include <clapack.h>
 #include <inttypes.h>
@@ -960,6 +963,7 @@ u8 ambiguity_sat_projection(ambiguity_test_t *amb_test, const u8 num_dds_in_inte
                        &intersection, sizeof(intersection),
                        &projection_aggregator);
   log_info("IAR: updates to %"PRIu32"\n", memory_pool_n_allocated(amb_test->pool));
+  log_info("IAR: ambiguity_sat_projection! %d\n", 0);
   log_info("After projection, num_sats = %d\n", num_dds_in_intersection + 1);
   u8 work_prns[MAX_CHANNELS];
   memcpy(work_prns, amb_test->sats.prns, amb_test->sats.num_sats * sizeof(u8));
@@ -1180,22 +1184,59 @@ static void intersection_hypothesis_prod(element_t *new_, void *x_, u32 n, eleme
   }
 }
 
+void print_amb(ambiguity_test_t *amb_test)
+{
+    log_info("print_amb: _____entry____\n");
+    static u8 null_sats_count = 0;
+    if (amb_test->sats.num_sats == 0) {
+        ++null_sats_count;
+        log_info("\n print_amb: null_sats_count %u!\n", null_sats_count);
+    }
+    log_info("print_amb num_dds        %u\n", amb_test->num_dds);
+    log_info("print_amb num_sats       %u\n", amb_test->sats.num_sats);
+    log_info("print_amb prn array size %u\n", (u8)(sizeof(amb_test->sats.prns)/sizeof(u8)));
+    log_info("print_amb amb_check initialized %u\n", amb_test->amb_check.initialized);
+    log_info("print_amb num_matching_ndxs %u\n", amb_test->amb_check.num_matching_ndxs);
+    log_info("amb_test->sats.prns (from num sats)         = {");
+    for (u8 i = 0; i < amb_test->sats.num_sats; i++) {
+        log_info("%u, ", amb_test->sats.prns[i]);
+    }
+    log_info("\namb_test->sats.prns (from num array)         = {");
+    for (u8 i = 0; i < (u8)(sizeof(amb_test->sats.prns)/sizeof(u8)); i++) {
+        log_info("%u, ", amb_test->sats.prns[i]);
+    }
+    log_info("\namb_test->amb_check.ambs = {");
+    for (u8 i = 0; i < MAX_CHANNELS-1; i++) {
+        log_info("%u, ", amb_test->amb_check.ambs[i]);
+    }
+    log_info("print_amb: _____exit____\n");
+}
+
 static s32 add_sats(ambiguity_test_t *amb_test,
                     u8 ref_prn, u8 *added_prns,
                     intersection_count_t *x)
 {
+  log_info("add_sats!---entry--\n");
+  static u32 amb_prn_count = 0;
+  ++amb_prn_count;
+  print_amb(amb_test);
+  log_info("amb_prn_count %d\n", amb_prn_count);
+  log_info("--------------\n");
   generate_hypothesis_state_t2 s;
   s.x = x;
   s.Z_new_inv = x->Z2_inv;
   remap_prns(amb_test, ref_prn, x->new_dim, added_prns, &s);
   s32 count = memory_pool_product_generator(amb_test->pool, &s, MAX_HYPOTHESES, sizeof(s),
-                  &intersection_init,
-                  &intersection_generate_next_hypothesis1,
-                  &intersection_hypothesis_prod);
+                                            &intersection_init,
+                                            &intersection_generate_next_hypothesis1,
+                                            &intersection_hypothesis_prod);
   (void) count;
   s32 num_hyps = memory_pool_n_allocated(amb_test->pool);
   log_info("IAR: updates to %"PRIu32"\n", num_hyps);
+  log_info("IAR: add_sats! %d\n", 0);
+  print_amb(amb_test);
   log_info("add_sats. num sats: %i\n", amb_test->sats.num_sats);
+  log_info("------add_sats!---exit--\n");
   return num_hyps;
 }
 
@@ -1447,9 +1488,14 @@ u8 ambiguity_sat_inclusion(ambiguity_test_t *amb_test, const u8 num_dds_in_inter
         &x, &full_size);
 
     if (fits == 1) {
+      log_info("ambiguity_update_sats: 1469\n");
+      print_amb(amb_test);
       /* Sats should be added. The struct x contains new_dim, the correct
        * number to add, along with the matrices needed to do so . */
       s32 num_hyps = add_sats(amb_test, ref_prn, new_dd_prns, &x);
+      log_info("ambiguity_update_sats: ----XXX-----------------\n");
+      print_amb(amb_test);
+      log_info("ambiguity_update_sats: 1476\n");
       if (num_hyps == 0) {
         return 2;
       } else {
@@ -1666,7 +1712,6 @@ u8 ambiguity_update_sats(ambiguity_test_t *amb_test, const u8 num_sdiffs,
                          const double *float_cov_D)
 {
   DEBUG_ENTRY();
-
   if (num_sdiffs < 2) {
     create_ambiguity_test(amb_test);
     log_debug("< 2 sdiffs, starting over\n");
@@ -1896,6 +1941,7 @@ void add_sats_old(ambiguity_test_t *amb_test,
   memory_pool_product_generator(amb_test->pool, &x0, MAX_HYPOTHESES, sizeof(x0),
                                 &no_init, &generate_next_hypothesis, &hypothesis_prod);
   log_info("IAR: updates to %"PRIu32"\n", memory_pool_n_allocated(amb_test->pool));
+  log_info("IAR: add_sats_old! %d\n", 0);
   if (DEBUG) {
     memory_pool_map(amb_test->pool, &k, &print_hyp);
   }
