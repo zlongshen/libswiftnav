@@ -23,6 +23,7 @@
 #include "dgnss_management.h"
 #include "linear_algebra.h"
 #include "ambiguity_test.h"
+#include "printing_utils.h"
 
 nkf_t nkf;
 sats_management_t sats_management;
@@ -286,6 +287,10 @@ static void dgnss_incorporate_observation(sdiff_t *sdiffs, double * dd_measureme
 void dgnss_update(u8 num_sats, sdiff_t *sdiffs, double reciever_ecef[3])
 {
   DEBUG_ENTRY();
+  u8 k = 0;
+  log_info("dgnss_update---entry--\n");
+  log_info("dgnss_update: memory pool upon entry:\n");
+  memory_pool_map(ambiguity_test.pool, &k, &print_hyp);
   if (DEBUG) {
     printf("sdiff[*].prn = {");
     for (u8 i=0; i < num_sats; i++) {
@@ -293,7 +298,6 @@ void dgnss_update(u8 num_sats, sdiff_t *sdiffs, double reciever_ecef[3])
     }
     printf("}\n");
   }
-
   if (num_sats <= 1) {
     sats_management.num_sats = num_sats;
     if (num_sats == 1) {
@@ -303,26 +307,20 @@ void dgnss_update(u8 num_sats, sdiff_t *sdiffs, double reciever_ecef[3])
     DEBUG_EXIT();
     return;
   }
-
   if (sats_management.num_sats <= 1) {
+    log_info("dgnss_update: calling dgnss_init\n");
     dgnss_init(num_sats, sdiffs, reciever_ecef);
   }
-
   sdiff_t sdiffs_with_ref_first[num_sats];
-
   u8 old_prns[MAX_CHANNELS];
   memcpy(old_prns, sats_management.prns, sats_management.num_sats * sizeof(u8));
-
   /* rebase globals to a new reference sat
    * (permutes sdiffs_with_ref_first accordingly) */
   dgnss_rebase_ref(num_sats, sdiffs, reciever_ecef, old_prns, sdiffs_with_ref_first);
-
   double dd_measurements[2*(num_sats-1)];
   make_measurements(num_sats-1, sdiffs_with_ref_first, dd_measurements);
-
   /* all the added/dropped sat stuff */
   dgnss_update_sats(num_sats, reciever_ecef, sdiffs_with_ref_first, dd_measurements);
-
   double ref_ecef[3];
   if (num_sats >= 5) {
     dgnss_incorporate_observation(sdiffs_with_ref_first, dd_measurements, reciever_ecef);
@@ -334,19 +332,23 @@ void dgnss_update(u8 num_sats, sdiff_t *sdiffs, double reciever_ecef[3])
   }
   log_debug("dgnss_update: LOLOLOLOLOLOLOLOLOLOLOLOL %d\n", 22);
   print_amb(&ambiguity_test);
+  log_info("dgnss_update: memory pool before ambiguity_update_sats:\n");
+  memory_pool_map(ambiguity_test.pool, &k, &print_hyp);
   u8 changed_sats = ambiguity_update_sats(&ambiguity_test, num_sats, sdiffs,
                                           &sats_management, nkf.state_mean,
                                           nkf.state_cov_U, nkf.state_cov_D);
-
- log_debug("dgnss_update: changed_sats% d\n", changed_sats);
- print_amb(&ambiguity_test);
- log_debug("---dgnss_update----LOL\n");
-
+  log_info("dgnss_update: memory pool after ambiguity_update_sats:\n");
+  memory_pool_map(ambiguity_test.pool, &k, &print_hyp);
+  log_debug("dgnss_update: changed_sats% d\n", changed_sats);
+  print_amb(&ambiguity_test);
+  log_debug("---dgnss_update----LOL\n");
   update_ambiguity_test(ref_ecef,
                         dgnss_settings.phase_var_test,
                         dgnss_settings.code_var_test,
                         &ambiguity_test, nkf.state_dim,
                         sdiffs, changed_sats);
+  log_info("dgnss_update: memory pool after update_ambiguity_test:\n");
+  memory_pool_map(ambiguity_test.pool, &k, &print_hyp);
   update_unanimous_ambiguities(&ambiguity_test);
   if (DEBUG) {
     if (num_sats >=4) {
@@ -366,6 +368,9 @@ void dgnss_update(u8 num_sats, sdiff_t *sdiffs, double reciever_ecef[3])
              ambiguity_iar_can_solve(&ambiguity_test));
     }
   }
+  log_info("dgnss_update: memory pool upon exit of dgnss_update:\n");
+  memory_pool_map(ambiguity_test.pool, &k, &print_hyp);
+  log_info("dgnss_update---exit--\n");
   DEBUG_EXIT();
 }
 
@@ -422,6 +427,7 @@ void dgnss_new_float_baseline(u8 num_sats, sdiff_t *sdiffs, double receiver_ecef
 s8 dgnss_fixed_baseline(u8 num_sdiffs, sdiff_t *sdiffs, double ref_ecef[3],
                         u8 *num_used, double b[3])
 {
+  log_info("%s", "----dgnss_fixed_baseline -----entry----\n");
   if (!ambiguity_iar_can_solve(&ambiguity_test)) {
     catch_dgnss_fixed2float(0, "dgnss_fixed_baseline 419\n");
     print_amb(&ambiguity_test);
@@ -458,6 +464,7 @@ s8 dgnss_fixed_baseline(u8 num_sdiffs, sdiff_t *sdiffs, double ref_ecef[3],
     return 0;
   }
   catch_dgnss_fixed2float(1, "dgnss_fixed_baseline\n");
+  log_info("%s", "----dgnss_fixed_baseline -----exit----\n");
   return 1;
 }
 

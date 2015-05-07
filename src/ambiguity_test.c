@@ -49,13 +49,16 @@ static void matrix_multiply_z_t(u32 n, u32 m, u32 p, const z_t *a,
  * \{ */
 void create_empty_ambiguity_test(ambiguity_test_t *amb_test)
 {
+  log_info("create_empty_amb_test---------entry----------\n");
+  print_amb(amb_test);
   static u8 pool_buff[MAX_HYPOTHESES*(sizeof(hypothesis_t) + sizeof(void *))];
   static memory_pool_t pool;
   amb_test->pool = &pool;
   memory_pool_init(amb_test->pool, MAX_HYPOTHESES, sizeof(hypothesis_t), pool_buff);
-
   amb_test->sats.num_sats = 0;
   amb_test->amb_check.initialized = 0;
+  print_amb(amb_test);
+  log_info("create_empty_amb_test---------exit----------\n");
 }
 void create_ambiguity_test(ambiguity_test_t *amb_test)
 {
@@ -1209,7 +1212,7 @@ void print_amb(ambiguity_test_t *amb_test)
     for (u8 i = 0; i < MAX_CHANNELS-1; i++) {
         log_info("%u, ", amb_test->amb_check.ambs[i]);
     }
-    log_info("print_amb: _____exit____\n");
+    log_info("\nprint_amb: _____exit____\n");
 }
 
 static s32 add_sats(ambiguity_test_t *amb_test,
@@ -1226,10 +1229,16 @@ static s32 add_sats(ambiguity_test_t *amb_test,
   s.x = x;
   s.Z_new_inv = x->Z2_inv;
   remap_prns(amb_test, ref_prn, x->new_dim, added_prns, &s);
+  log_info("add_sats: memory_pool_map before product\n");
+  u8 k = 0;
+  memory_pool_map(amb_test->pool, &k, &print_hyp);
   s32 count = memory_pool_product_generator(amb_test->pool, &s, MAX_HYPOTHESES, sizeof(s),
                                             &intersection_init,
                                             &intersection_generate_next_hypothesis1,
                                             &intersection_hypothesis_prod);
+  log_info("add_sats: memory_pool_map after product\n");
+  memory_pool_map(amb_test->pool, &k, &print_hyp);
+  log_info("add_sats: memory_pool_product_generator count: %i\n", count);
   (void) count;
   s32 num_hyps = memory_pool_n_allocated(amb_test->pool);
   log_info("IAR: updates to %"PRIu32"\n", num_hyps);
@@ -1488,17 +1497,22 @@ u8 ambiguity_sat_inclusion(ambiguity_test_t *amb_test, const u8 num_dds_in_inter
         &x, &full_size);
 
     if (fits == 1) {
-      log_info("ambiguity_update_sats: 1469\n");
+      log_info("ambiguity_sat_inclusion: 1469, ref_prn %u\n", ref_prn);
       print_amb(amb_test);
+      for (u8 i = 0; i < sizeof(new_dd_prns); ++i) {
+          log_info("ambiguity_sat_inclusion: new_dd_prns %u\n", new_dd_prns[i]);
+      }
       /* Sats should be added. The struct x contains new_dim, the correct
        * number to add, along with the matrices needed to do so . */
       s32 num_hyps = add_sats(amb_test, ref_prn, new_dd_prns, &x);
-      log_info("ambiguity_update_sats: ----XXX-----------------\n");
+      log_info("ambiguity_sat_inclusion: --after add sats--XXX-----------------\n");
       print_amb(amb_test);
-      log_info("ambiguity_update_sats: 1476\n");
+      log_info("ambiguity_sat_inclusion: 1476\n");
       if (num_hyps == 0) {
+        log_info("ambiguity_sat_inclusion: we apparently need to start over\n");
         return 2;
       } else {
+        log_info("ambiguity_sat_inclusion: we changed the sats, but don't need to start over\n");
         return 1;
       }
     }
@@ -1727,6 +1741,7 @@ u8 ambiguity_update_sats(ambiguity_test_t *amb_test, const u8 num_sdiffs,
        changed_sats=1;
       }
     } else {
+      log_debug("ambiguity_update_sats create_ambiguity_test 1733\n");
       create_ambiguity_test(amb_test);//we don't have what we need
     }
 
@@ -1734,6 +1749,7 @@ u8 ambiguity_update_sats(ambiguity_test_t *amb_test, const u8 num_sdiffs,
     u8 num_dds_in_intersection = find_indices_of_intersection_sats(amb_test, num_sdiffs, sdiffs_with_ref_first, intersection_ndxs);
 
     if (amb_test->sats.num_sats > 1 && num_dds_in_intersection == 0) {
+     log_debug("ambiguity_update_sats create_ambiguity_test 1741\n");
       create_ambiguity_test(amb_test);
     }
 
@@ -1742,8 +1758,10 @@ u8 ambiguity_update_sats(ambiguity_test_t *amb_test, const u8 num_sdiffs,
       changed_sats = 1;
     }
     u8 incl = ambiguity_sat_inclusion(amb_test, num_dds_in_intersection,
-                float_sats, float_mean, float_cov_U, float_cov_D);
+                                      float_sats, float_mean,
+                                      float_cov_U, float_cov_D);
     if (incl == 2) {
+      log_debug("ambiguity_update_sats create_ambiguity_test 1752\n");
       create_ambiguity_test(amb_test);
       changed_sats = 1;
     } else if (incl == 1) {
@@ -1881,6 +1899,7 @@ void add_sats_old(ambiguity_test_t *amb_test,
                   z_t *lower_bounds, z_t *upper_bounds,
                   z_t *Z_inv)
 {
+  log_info("!!!!!!!!!!!!!!! add_sats_old !!!!!!!!!!!!!!!!!!!!!!!!!!\n");
   /* Make a generator that iterates over the new hypotheses. */
   generate_hypothesis_state_t x0;
   memcpy(x0.upper_bounds, upper_bounds, num_added_dds * sizeof(z_t));
